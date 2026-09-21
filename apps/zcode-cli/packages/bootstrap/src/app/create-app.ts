@@ -24,7 +24,7 @@ import {
   type AmendWorkflowRunSettingsInput,
   type ResumeSessionResult,
 } from "@zcode/core";
-import { createModelTelemetry } from "@zcode/telemetry";
+import { createModelTelemetry } from "../model-telemetry-stub.js";
 import {
   createRootTraceContext,
   traceContextToLogContext,
