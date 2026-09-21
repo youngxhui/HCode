@@ -7,23 +7,18 @@ import {
 import type { ModelSelectionView } from "@zcode/services";
 import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 
-export type ApiKeyProviderChoice = "zai" | "bigmodel";
+export type ApiKeyProviderChoice = "zai";
 
 export function resolveLoginApiKeyDefaultProvider(locale: Locale): ApiKeyProviderChoice {
-  return locale === "zh-CN" ? "bigmodel" : "zai";
+  return "zai";
 }
 
-export function resolveLoginApiKeyTemplateId(
-  choice: ApiKeyProviderChoice,
-): "zai-api" | "bigmodel-api" {
-  return choice === "zai"
-    ? BUILTIN_PROVIDER_TEMPLATE_IDS.zai
-    : BUILTIN_PROVIDER_TEMPLATE_IDS.bigmodel;
+export function resolveLoginApiKeyTemplateId(choice: ApiKeyProviderChoice): "zai-api" {
+  return BUILTIN_PROVIDER_TEMPLATE_IDS.zai;
 }
 
 export function resolveLoginApiKeyProviderLabel(choice: ApiKeyProviderChoice): string {
-  // Welcome Screen API Key 错误提示需要使用 BigModel 品牌固定写法。
-  return choice === "zai" ? "Z.ai" : "BigModel";
+  return "Z.ai";
 }
 
 function resolveLoginApiKeyProviderFamilyDomain(
