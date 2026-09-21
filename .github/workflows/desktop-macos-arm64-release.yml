@@ -1,0 +1,135 @@
+name: desktop-macos-arm64-release
+
+# 手动触发构建 macOS arm64 桌面安装包，并自动分发到 GitHub Release。
+# 行为契约（输入、构建链、不变量、失败语义、验收场景）见同目录 README.md。
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "发布标签；留空默认取 v<根 package.json version>"
+        required: false
+        default: ""
+      release_title:
+        description: "Release 标题；留空使用标签名"
+        required: false
+        default: ""
+      zcode_env:
+        description: "后端环境。production = 正式身份 ZCode；test = ZCode Preview（产物带 _TEST 后缀）"
+        required: false
+        default: "production"
+      draft:
+        description: "创建为草稿 Release（需手动点击发布）；取消勾选则直接公开发布"
+        type: boolean
+        default: true
+      prerelease:
+        description: "标记为预发布（Pre-release）"
+        type: boolean
+        default: false
+      enable_mac_signing:
+        description: "启用 macOS 代码签名，需要仓库 secret APPLE_SIGNING_IDENTITY；公证为独立阶段，不在本流程内"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: build macOS arm64
+    # macos-14 是 GitHub 托管的 arm64 镜像；仓库当前只发布 macOS arm64 安装包。
+    runs-on: macos-14
+    timeout-minutes: 90
+    env:
+      ZCODE_ENV: ${{ inputs.zcode_env }}
+      # 安装包不包含 mock-cdn 远程资产（SSH/WSL 资源由单独的发布链路准备并上传 CDN），
+      # 跳过远程资产准备与 pnpm bootstrap 的默认行为一致，可显著缩短 CI 时长。
+      ZCODE_SKIP_REMOTE_ASSETS: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10.33.2"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: "0"
+          PNPM_CONFIG_CONFIRM_MODULES_PURGE: "false"
+
+      # 与 build:bootstrap 相同的前置步骤：先构建除 desktop 外的 workspace 包，
+      # desktop 自身产物由 bundle:desktop 内部的 tsup + vite 生产构建完成。
+      - name: Build workspace packages
+        run: pnpm -r --filter "./packages/*" --filter "!@zcode/desktop" build
+
+      # README「打包 → 桌面版」文档入口；默认目标即 macOS arm64。
+      # 脚本内部依次完成本地 runtime 资产准备、生产构建、electron-builder 打包，
+      # 并对 app.asar 运行时依赖与产物体积做机械校验，失败即中止，不会产出坏包。
+      - name: Bundle desktop (macOS arm64)
+        run: pnpm bundle:desktop -- --os mac --arch arm64
+        env:
+          ZCODE_ENABLE_MAC_SIGN: ${{ inputs.enable_mac_signing && '1' || '0' }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp packages/desktop/dist/mac-arm64/*.dmg artifacts/
+          cp packages/desktop/dist/mac-arm64/*.zip artifacts/
+          # electron-builder 会为 zip 生成 blockmap，供差分更新使用；dmg 没有该文件。
+          if ls packages/desktop/dist/mac-arm64/*.blockmap >/dev/null 2>&1; then
+            cp packages/desktop/dist/mac-arm64/*.blockmap artifacts/
+          fi
+          ls -lh artifacts
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-mac-arm64
+          path: artifacts/
+          if-no-files-found: error
+
+      - name: Publish to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_TITLE: ${{ inputs.release_title }}
+          INPUT_DRAFT: ${{ inputs.draft }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          tag="${INPUT_TAG:-v$(node -p "require('./package.json').version")}"
+          title="${INPUT_TITLE:-$tag}"
+
+          shopt -s nullglob
+          files=(artifacts/*.dmg artifacts/*.zip artifacts/*.blockmap)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::artifacts directory is empty"
+            exit 1
+          fi
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            # 已存在的 Release 只追加/覆盖资产，不改变其标题与发布说明。
+            echo "Release $tag already exists; uploading assets with --clobber"
+            gh release upload "$tag" "${files[@]}" --clobber
+          else
+            create_args=(--target "$GITHUB_SHA" --title "$title" --generate-notes)
+            [ "$INPUT_DRAFT" = "true" ] && create_args+=(--draft)
+            [ "$INPUT_PRERELEASE" = "true" ] && create_args+=(--prerelease)
+            echo "Creating release $tag at $GITHUB_SHA with args: ${create_args[*]}"
+            gh release create "$tag" "${files[@]}" "${create_args[@]}"
+          fi

@@ -157,6 +157,10 @@ pnpm bundle:desktop -- --help
 sudo xattr -rd com.apple.quarantine /Applications/ZCode.app
 ```
 
+CI 发布：GitHub Actions 工作流 `desktop-macos-arm64-release` 可手动触发，在 macOS arm64
+runner 上执行上述打包链路，并自动将 DMG/ZIP 分发到 GitHub Release。输入项、产物身份与
+验收场景见 [.github/workflows/README.md](.github/workflows/README.md)。
+
 ### ZCode 命令行版
 
 构建入口为 `pnpm build:zcode`。脚本会依次构建 CLI/TUI、后端和 Web，收集 TUI 的原生库、worker 与运行时依赖，再组装发行包；运行发行包仍需要 Node.js，版本以 `mise.toml` 为准。

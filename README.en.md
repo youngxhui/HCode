@@ -147,6 +147,8 @@ pnpm bundle:desktop -- --help
 
 The default target is macOS arm64, and the default output directory is `packages/desktop/dist/`. `--os` accepts `mac`, `win`, or `linux`; `--arch` accepts `x64` or `arm64`. Packaging and signing require the tools and configuration for the target platform.
 
+CI releases: the GitHub Actions workflow `desktop-macos-arm64-release` can be triggered manually, runs the packaging chain above on a macOS arm64 runner, and distributes the DMG/ZIP artifacts to a GitHub Release. Inputs, artifact identity, and acceptance scenarios are documented in [.github/workflows/README.md](.github/workflows/README.md).
+
 ### ZCode CLI distribution
 
 Run `pnpm build:zcode` to build the CLI/TUI, backend, and Web client, collect the TUI native libraries, workers, and runtime dependencies, then assemble the distribution. Running the distribution still requires Node.js; use the version specified in `mise.toml`.
