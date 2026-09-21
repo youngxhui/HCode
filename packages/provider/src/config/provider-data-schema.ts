@@ -18,9 +18,10 @@ export const zhipuAccountModeDataSchema = z.enum([
   "off-peak",
 ]);
 export const providerVisibilityDataSchema = z.enum(["visible", "hidden"]);
-export const providerLogoDataSchema = z
-  .object({ type: z.literal("builtin"), key: z.string().min(1) })
-  .strict();
+export const providerLogoDataSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("builtin"), key: z.string().min(1) }).strict(),
+  z.object({ type: z.literal("remote"), url: z.string().url() }).strict(),
+]);
 
 const nonBlankRequiredString = z.string().refine((value) => value.trim().length > 0, {
   message: "必填配置不能为空",

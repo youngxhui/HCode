@@ -33,6 +33,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { ApiKeyInput } from "./ApiKeyInput.js";
 import { fetchProviderModelIds } from "./fetchProviderModels.js";
 import { ProviderApiFormatSelect, resolveProviderConnectionApiFormatOptions } from "./ProviderApiFormatSelect.js";
+import { ProviderLogo } from "./ProviderLogo.js";
 
 /** 目录里没有目标供应商时的占位项；选中后所有字段都需要手填。 */
 const MANUAL_ENTRY_VALUE = "__manual__";
@@ -71,19 +72,28 @@ export interface CustomProviderCreateSubmit {
 export function CustomProviderCreateForm({
   templates,
   creating,
+  initialTemplateId,
   onBack,
   onSubmit,
 }: {
   templates: readonly ProviderSettingsTemplateView[];
   creating: boolean;
+  /** 从模板选择器进入时预选目录条目，省去用户重新搜索。 */
+  initialTemplateId?: string;
   onBack: () => void;
   onSubmit: (input: CustomProviderCreateSubmit) => Promise<void>;
 }) {
   const { intl } = useZCodeIntl();
-  const [selected, setSelected] = useState<string>(MANUAL_ENTRY_VALUE);
+  const initialTemplate = useMemo(
+    () => templates.find((item) => item.templateId === initialTemplateId),
+    [initialTemplateId, templates],
+  );
+  const [selected, setSelected] = useState<string>(initialTemplateId ?? MANUAL_ENTRY_VALUE);
   const [catalogOpen, setCatalogOpen] = useState(false);
-  const [apiType, setApiType] = useState<ProviderApiType>("openai-chat-completions");
-  const [baseUrl, setBaseUrl] = useState("");
+  const [apiType, setApiType] = useState<ProviderApiType>(
+    initialTemplate?.config.api?.type ?? "openai-chat-completions",
+  );
+  const [baseUrl, setBaseUrl] = useState(initialTemplate?.config.api?.baseUrl ?? "");
   const [apiKey, setApiKey] = useState("");
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -263,6 +273,7 @@ export function CustomProviderCreateForm({
                         )}
                         aria-hidden="true"
                       />
+                      <ProviderLogo logo={item.config.logo} className="size-5 shrink-0" />
                       <span className="min-w-0 truncate">
                         {item.templateNameMap["en-US"] ?? item.templateId}
                       </span>

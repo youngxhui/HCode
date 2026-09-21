@@ -64,7 +64,10 @@ export function ProviderLogo({
   className?: string;
 }) {
   const theme = useZCodeStoreWithDefault((state) => state.theme, "zai-dark");
-  const src = resolveBuiltinProviderLogoAsset(logo, resolveTheme(theme));
+  const src =
+    logo?.type === "remote"
+      ? logo.url
+      : resolveBuiltinProviderLogoAsset(logo, resolveTheme(theme));
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   if (!src || failedSrc === src) {
     return <PackageIcon className={cn("shrink-0", className)} aria-hidden="true" />;

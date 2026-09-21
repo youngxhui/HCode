@@ -39,7 +39,7 @@ import {
 } from "./model-provider-section/constants.js";
 import { ModelProviderSectionDetail } from "./model-provider-section/Detail.js";
 import { ModelProviderSectionLayout } from "./model-provider-section/SectionLayout.js";
-import { ProviderTemplatePicker } from "./model-provider-section/ProviderTemplatePicker.js";
+import { CustomProviderCreateForm } from "./model-provider-section/CustomProviderCreateForm.js";
 import type { CodingPlanLoginOptions } from "./model-provider-section/codingPlanPricingCards.js";
 import { useModelProviderNavigation } from "./model-provider-section/useModelProviderNavigation.js";
 import { reportPresetSubscriptionSuccess } from "./model-provider-section/oauthActions.js";
@@ -1113,14 +1113,14 @@ export function ModelProviderSection({
         </p>
       ) : null}
       {templatePickerOpen ? (
-        <ProviderTemplatePicker
+        <CustomProviderCreateForm
           templates={providerTemplates}
           creating={creatingProvider}
           onBack={() => setTemplatePickerOpen(false)}
-          onCreateFromTemplate={(templateId) => {
-            return handleCreateProvider({ templateId });
+          onSubmit={async (input) => {
+            await handleCreateProvider(input);
+            setTemplatePickerOpen(false);
           }}
-          onCreateCustom={(input) => handleCreateProvider(input)}
         />
       ) : (
         <ModelProviderSectionDetail

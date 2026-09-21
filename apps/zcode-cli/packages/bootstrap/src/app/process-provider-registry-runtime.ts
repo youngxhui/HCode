@@ -80,6 +80,8 @@ export async function startProcessProviderRegistryRuntime(
                 request: options.standalone?.request ?? globalThis.fetch,
               }),
             onRefreshResult: options.standalone?.onBuiltinRefreshResult,
+            // 模型名单不再内置，5 分钟刷新让新模型尽快对用户可见。
+            successIntervalMs: 5 * 60_000,
           },
         }
       : {}),
