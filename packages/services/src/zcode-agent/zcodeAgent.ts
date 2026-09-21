@@ -18,8 +18,6 @@ import type {
   ZCodeSessionImportHistory,
   ZCodePermissionRequestParams,
   AgentLaneResourceSample,
-  ZCodeMcpTelemetryEvent,
-  ZCodeMcpResourceSample,
   ZCodeToolExecResource,
   ZCodeProcessChildProcess,
   ZCodeMcpListResult,
@@ -71,7 +69,6 @@ import type {
   CommandKey,
   CommandsQueryResult,
   ConversationTopicWireCandidate,
-  ConversationTelemetryFact,
   CuaPermissionObservation,
   ConversationRowTarget,
   HelloMessage,
@@ -711,10 +708,6 @@ export interface IZCodeAgentService {
    * 该事件不属于 session/conversation continuous 或 replayable 状态。
    */
   onDynamicProcessResourceSample(): Event<AgentLaneResourceSample>;
-  /** MCP 进程生命周期与低频内存事件，仅供可信 Host relay 上报 ARMS。 */
-  onDynamicMcpTelemetry(): Event<ZCodeMcpTelemetryEvent>;
-  /** MCP 进程树资源事实，只供可信 Host 汇总上报。 */
-  onDynamicMcpResourceSamples(): Event<ZCodeMcpResourceSample[]>;
   /** Bash 完成事实，仅可信 Host 资源旁路订阅。 */
   onDynamicToolExecResource(): Event<ZCodeToolExecResource>;
   /**
@@ -810,9 +803,6 @@ export interface IZCodeAgentService {
   onDynamicLocalTtftFacts(
     params: ZCodeAgentWorkspaceTarget,
   ): Event<import("@zcode/shared").LocalTtftFacts>;
-  onDynamicConversationTelemetryFact(
-    params: ZCodeAgentWorkspaceTarget,
-  ): Event<ConversationTelemetryFact>;
   /** 当前窗口全部本地 live task 的 CUA 权限观察；历史、远程与 replayable 不在此事件面。 */
   onDynamicCuaPermissionObservation(): Event<ZCodeAgentCuaPermissionObservation>;
   // ── sessions-index 通道（列表活性）──

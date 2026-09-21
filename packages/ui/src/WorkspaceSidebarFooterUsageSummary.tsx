@@ -27,11 +27,6 @@ import {
   isMaxCodingPlanSnapshot,
   resolveSidebarCodingPlanUpgradeFallbackProviderId,
 } from "@/lib/sidebarCodingPlanUpgrade.js";
-import {
-  createCodingPlanFunnelContext,
-  resolveCodingPlanEntryPlanState,
-  type CodingPlanFunnelContext,
-} from "@/lib/codingPlanFunnelTelemetry.js";
 import { type SidebarUsageCodingPlanProviderId } from "@/lib/sidebarUsageCodingPlanProviderPreference.js";
 import { useEnterpriseCodingPlanProducts } from "@/settings/model-provider-section/useEnterpriseCodingPlanProducts.js";
 import {
@@ -64,7 +59,6 @@ export function WorkspaceSidebarFooterUsageSummary({
   onUsageClick?: () => void;
   onUpgradeClick?: (
     providerId: SidebarUsageCodingPlanProviderId,
-    funnelContext: CodingPlanFunnelContext,
   ) => void;
   workspaceIdentity?: string;
   workspacePath?: string;
@@ -424,7 +418,6 @@ export function WorkspaceSidebarFooterUsageSummaryContent({
   onUsageClick?: () => void;
   onUpgradeClick?: (
     providerId: SidebarUsageCodingPlanProviderId,
-    funnelContext: CodingPlanFunnelContext,
   ) => void;
 }) {
   const { intl } = useZCodeIntl();
@@ -460,18 +453,7 @@ export function WorkspaceSidebarFooterUsageSummaryContent({
             entryGate.retry?.();
             return;
           }
-          onUpgradeClick?.(
-            upgradeTargetProviderId,
-            createCodingPlanFunnelContext({
-              providerId: upgradeTargetProviderId,
-              upgradeSource: "profile_menu",
-              eventRegion: "app.profile",
-              eventText: intl.formatMessage({ id: upgradeActionLabelId }),
-              entryPlanState: resolveCodingPlanEntryPlanState({
-                snapshot: upgradeProviderSnapshot,
-              }),
-            }),
-          );
+          onUpgradeClick?.(upgradeTargetProviderId);
         }}
       >
         <RocketIcon className="size-4" />

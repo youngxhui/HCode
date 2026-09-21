@@ -41,7 +41,7 @@ export async function runServerCore(generation: number): Promise<void> {
     zcodeBuiltinProviderConfigFilePath,
     serviceAuthorityMode: "standalone-server",
   });
-  const taskActivityTracker = createTaskActivityTracker(services.getOptional(IZCodeAgentService));
+  const taskActivityTracker = createTaskActivityTracker();
   const http = await createCoreHttpServer(services, { serverId: await resolveCoreServerId() });
   const send = (message: unknown): Promise<void> => {
     if (typeof process.send !== "function" || process.connected === false) return Promise.resolve();

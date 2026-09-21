@@ -758,11 +758,10 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   const handleOpenCodingPlanUpgrade = useCallback(
     (
       providerId: string,
-      funnelContext?: import("@/lib/codingPlanFunnelTelemetry.js").CodingPlanFunnelContext,
+      _funnelContext?: unknown,
     ) => {
       openCodingPlanUpgrade({
         providerId,
-        funnelContext,
       });
     },
     [openCodingPlanUpgrade],

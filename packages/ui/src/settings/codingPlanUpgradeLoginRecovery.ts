@@ -5,7 +5,7 @@ export interface CodingPlanUpgradeDialogTarget {
   providerId: string;
   initialAudience?: PurchaseAudience;
   initialTeamPlanKey?: string;
-  funnelContext?: import("@/lib/codingPlanFunnelTelemetry.js").CodingPlanFunnelContext;
+  funnelContext?: Record<string, unknown>;
 }
 
 interface PendingCodingPlanUpgradeAfterLogin {
