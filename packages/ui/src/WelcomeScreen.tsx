@@ -28,19 +28,57 @@ import { useZCodeStore } from "./store/StoreProvider.js";
 
 interface WelcomeScreenProps {
   onComplete: (reason: LoginCompleteReason) => void | Promise<void>;
+  /** WelcomeScreen 打开原因；startup-provider-required 为首次启动引导，只展示欢迎按钮，不提供 provider 连接。 */
+  reason?: string;
 }
 
 export type LoginCompleteReason = "oauth" | "apiKey" | "skip";
 
-export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
+export function WelcomeScreen({ onComplete, reason }: WelcomeScreenProps) {
+  // 首次启动引导阶段不需要连接任何 provider，模型提供方在进入应用后通过设置页配置。
+  const isOnboarding = reason === "startup-provider-required";
+
   return (
     <main className="relative flex h-full min-h-dvh items-center justify-center overflow-hidden bg-background px-4 py-6 text-foreground sm:px-6">
       <ThemeHeroVisual className="absolute inset-0" />
       <div className="pointer-events-none absolute left-0 top-0 right-0 z-10 flex h-12 w-full items-center [app-region:drag]" />
       <section className="relative z-10 w-full flex flex-col gap-10 max-w-sm rounded-2xl border border-popover-border bg-background p-8 text-ui-base/relaxed shadow-md sm:p-10">
-        <LoginPanel active onComplete={onComplete} />
+        {isOnboarding ? (
+          <OnboardingWelcomePanel onComplete={onComplete} />
+        ) : (
+          <LoginPanel active onComplete={onComplete} />
+        )}
       </section>
     </main>
+  );
+}
+
+function OnboardingWelcomePanel({
+  onComplete,
+}: {
+  onComplete: (reason: LoginCompleteReason) => void | Promise<void>;
+}) {
+  const { intl } = useZCodeIntl();
+
+  return (
+    <>
+      <LoginPanelHeader
+        title={intl.formatMessage({ id: "login.title" })}
+        description={intl.formatMessage({ id: "login.onboarding.description" })}
+      >
+        {null}
+      </LoginPanelHeader>
+      <div className="space-y-6">
+        <Button
+          variant="default"
+          className="h-10 w-full text-ui-base"
+          size="lg"
+          onClick={() => void onComplete("skip")}
+        >
+          {intl.formatMessage({ id: "login.onboarding.action" })}
+        </Button>
+      </div>
+    </>
   );
 }
 
@@ -523,25 +561,25 @@ function LoginOAuthRegionTag({ providerId }: { providerId: string }) {
 }
 
 function getProviderPriority(provider: OAuthProviderMeta): number {
-  switch (provider.id) {
-    // Windows 登录入口里 z.ai 入口需要固定排在最上面，
-    // 之前把 BigModel 设成更高优先级后，用户首屏会先看到次要入口。
-    // 这里直接调整排序权重，只改展示顺序，不影响 OAuth provider 的真实配置来源。
-    case ZAI_PROVIDER_ID:
-      return 0;
-    case BIGMODEL_PROVIDER_ID:
-      return 1;
-    default:
-      return 10 + provider.order;
-  }
+  // Onboarding 登录入口仅展示非 BigModel / 智谱的 provider，
+  // 保留通用排序逻辑即可，不再需要针对特定 provider 的权重调整。
+  return 10 + provider.order;
+}
+
+const ONBOARDING_HIDDEN_OAUTH_PROVIDER_IDS = [BIGMODEL_PROVIDER_ID, ZAI_PROVIDER_ID] as const;
+
+function isOnboardingHiddenOAuthProvider(providerId: OAuthProviderMeta["id"]): boolean {
+  return ONBOARDING_HIDDEN_OAUTH_PROVIDER_IDS.includes(
+    providerId as (typeof ONBOARDING_HIDDEN_OAUTH_PROVIDER_IDS)[number],
+  );
 }
 
 function resolveVisibleLoginProviders(providers: OAuthProviderMeta[]): OAuthProviderMeta[] {
-  // ZAI / BigModel 现在共享 App 登录事实源，未登录时登录入口必须同时展示两个入口。
-  // 不能临时隐藏 BigModel，否则用户无法主动选择 BigModel 作为 active provider。
-  return [...providers].sort((left, right) => {
-    return getProviderPriority(left) - getProviderPriority(right);
-  });
+  // 欢迎/登录入口不展示 BigModel / 智谱（ZAI）的 OAuth 连接入口，
+  // 其余 provider 按原有优先级排序展示。
+  return [...providers]
+    .filter((provider) => !isOnboardingHiddenOAuthProvider(provider.id))
+    .sort((left, right) => getProviderPriority(left) - getProviderPriority(right));
 }
 
 function resolveLoginRetryProvider({
@@ -553,5 +591,12 @@ function resolveLoginRetryProvider({
   lastAttemptProvider: OAuthProviderMeta["id"] | null;
   providers: OAuthProviderMeta[];
 }): OAuthProviderMeta["id"] | null {
-  return pendingProvider ?? lastAttemptProvider ?? providers[0]?.id ?? null;
+  // 重试时同样排除已隐藏的 provider，避免回退到不在入口展示的渠道。
+  const visibleProviders = providers.filter((p) => !isOnboardingHiddenOAuthProvider(p.id));
+  const candidates = [pendingProvider, lastAttemptProvider, visibleProviders[0]?.id ?? null].filter(
+    (id): id is OAuthProviderMeta["id"] =>
+      Boolean(id) && visibleProviders.some((provider) => provider.id === id),
+  );
+
+  return candidates[0] ?? null;
 }
