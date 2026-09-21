@@ -1,7 +1,7 @@
 import type { ProviderSettingsView } from "@zcode/services";
-import { ArrowLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
+import { ArrowLeftIcon, ChevronRightIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { resolveProviderTemplateName } from "@zcode/provider";
-import type { ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   TID_MODEL_PROVIDER_TEMPLATE_BACK_BUTTON,
   TID_MODEL_PROVIDER_TEMPLATE_ITEM,
@@ -9,15 +9,24 @@ import {
   testId,
 } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
+import { Input } from "@/components/ui/input.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { ProviderLogo } from "./ProviderLogo.js";
+import { CustomProviderCreateForm, type CustomProviderCreateSubmit } from "./CustomProviderCreateForm.js";
 import { useProviderDetailFeedback } from "./ProviderDetailFeedback.js";
 
 type ProviderTemplateCreate = (templateId: string) => Promise<void>;
-type CustomProviderCreate = (label: string) => Promise<void>;
+type CustomProviderCreate = (input: CustomProviderCreateSubmit) => Promise<void>;
 
+/**
+ * 供应商模板选择器。
+ *
+ * 模板层完全来自 models.dev 目录，条目上百，因此搜索是主交互而非附属：
+ * 输入框常驻，未输入时展示全部条目（可滚动），输入后按名称与 id 过滤。
+ * 自定义创建走独立表单，不在此网格内。
+ */
 export function ProviderTemplatePicker({
   templates,
   onBack,
@@ -33,20 +42,18 @@ export function ProviderTemplatePicker({
 }) {
   const { intl, locale } = useZCodeIntl();
   const { dismissFeedback, showFeedback } = useProviderDetailFeedback();
-  const customLabel = intl.formatMessage({ id: "settings.modelProvider.newProviderName" });
-  const zhipuIds = ["bigmodel-api", "zai-api", "bigmodel-standard-api", "zai-standard-api"];
-  const groups = [
-    {
-      id: "zhipu",
-      templates: zhipuIds.flatMap((id) =>
-        templates.filter((template) => template.templateId === id),
-      ),
-    },
-    {
-      id: "other",
-      templates: templates.filter((template) => !zhipuIds.includes(template.templateId)),
-    },
-  ] as const;
+  const [customFormOpen, setCustomFormOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const visibleTemplates = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return templates;
+    return templates.filter((template) => {
+      const label = resolveProviderTemplateName(template.templateId, template, locale).toLowerCase();
+      return label.includes(normalized) || template.templateId.toLowerCase().includes(normalized);
+    });
+  }, [locale, query, templates]);
+
   const createWithFeedback = async (create: () => Promise<void>) => {
     const feedbackKey = "provider-template-create";
     dismissFeedback(feedbackKey);
@@ -68,6 +75,23 @@ export function ProviderTemplatePicker({
       });
     }
   };
+
+  // 自定义创建不再是「一键建空壳」：打开表单让用户选目录条目、确认 api 格式、
+  // 填 key 并拉取模型名单，再一次性提交完整配置。
+  if (customFormOpen) {
+    return (
+      <CustomProviderCreateForm
+        templates={templates}
+        creating={creating}
+        onBack={() => setCustomFormOpen(false)}
+        onSubmit={async (input) => {
+          await createWithFeedback(() => onCreateCustom(input));
+          setCustomFormOpen(false);
+        }}
+      />
+    );
+  }
+
   return (
     <section className="space-y-5" data-testid={TID_MODEL_PROVIDER_TEMPLATE_PICKER}>
       <div className="flex items-center gap-3">
@@ -86,48 +110,58 @@ export function ProviderTemplatePicker({
         </h2>
       </div>
 
-      <div className="space-y-6">
-        {groups.map((group) => (
-          <section key={group.id} data-provider-template-group={group.id} className="space-y-3">
-            <h3 className="text-ui-base font-medium text-foreground-subtle">
-              {intl.formatMessage({ id: `settings.modelProvider.templateGroup.${group.id}` })}
-            </h3>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {group.id === "other" ? (
-                <ProviderTemplateCard
-                  label={intl.formatMessage({ id: "settings.modelProvider.createCustomProvider" })}
-                  disabled={creating}
-                  testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, "custom")}
-                  icon={
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-hover">
-                      <PlusIcon className="size-4" aria-hidden="true" />
-                    </span>
-                  }
-                  onClick={() => void createWithFeedback(() => onCreateCustom(customLabel))}
-                />
-              ) : null}
-              {group.templates.map((template) => {
-                const label = resolveProviderTemplateName(template.templateId, template, locale);
-                return (
-                  <ProviderTemplateCard
-                    key={template.templateId}
-                    label={label}
-                    disabled={creating}
-                    testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, template.templateId)}
-                    icon={
-                      <span className="flex size-9 shrink-0 items-center justify-center">
-                        <ProviderLogo logo={template.config.logo} className="size-8" />
-                      </span>
-                    }
-                    onClick={() =>
-                      void createWithFeedback(() => onCreateFromTemplate(template.templateId))
-                    }
-                  />
-                );
-              })}
-            </div>
-          </section>
-        ))}
+      <div className="relative">
+        <SearchIcon
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtlest"
+          aria-hidden="true"
+        />
+        <Input
+          type="search"
+          size="lg"
+          className="pl-9"
+          value={query}
+          placeholder={intl.formatMessage({ id: "settings.modelProvider.templatePickerSearch" })}
+          aria-label={intl.formatMessage({ id: "settings.modelProvider.templatePickerSearch" })}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
+
+      <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+        <ProviderTemplateCard
+          label={intl.formatMessage({ id: "settings.modelProvider.createCustomProvider" })}
+          disabled={creating}
+          testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, "custom")}
+          icon={
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-hover">
+              <PlusIcon className="size-4" aria-hidden="true" />
+            </span>
+          }
+          onClick={() => setCustomFormOpen(true)}
+        />
+        {visibleTemplates.map((template) => {
+          const label = resolveProviderTemplateName(template.templateId, template, locale);
+          return (
+            <ProviderTemplateCard
+              key={template.templateId}
+              label={label}
+              disabled={creating}
+              testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, template.templateId)}
+              icon={
+                <span className="flex size-9 shrink-0 items-center justify-center">
+                  <ProviderLogo logo={template.config.logo} className="size-8" />
+                </span>
+              }
+              onClick={() =>
+                void createWithFeedback(() => onCreateFromTemplate(template.templateId))
+              }
+            />
+          );
+        })}
+        {visibleTemplates.length === 0 ? (
+          <p className="px-1 py-6 text-center text-ui-base text-foreground-subtle">
+            {intl.formatMessage({ id: "settings.modelProvider.templatePickerEmpty" })}
+          </p>
+        ) : null}
       </div>
     </section>
   );

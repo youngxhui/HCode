@@ -20,6 +20,7 @@ import {
   resolveProviderFamilyDomainFromOAuthProvider,
   ZAI_PROVIDER_ID,
 } from "@zcode/shared";
+import type { ProviderApiType } from "@zcode/provider";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
@@ -986,10 +987,38 @@ export function ModelProviderSection({
   );
 
   const handleCreateProvider = useCallback(
-    async (input: { templateId?: string; providerName?: string }) => {
+    async (input: {
+      templateId?: string;
+      providerName?: string;
+      api?: { type: ProviderApiType; baseUrl: string };
+      apiKey?: string;
+      modelIds?: readonly string[];
+    }) => {
       setCreatingProvider(true);
       try {
-        const created = await createPersonalProvider({ ...input, locale });
+        const created = await createPersonalProvider({
+          ...(input.templateId ? { templateId: input.templateId } : {}),
+          ...(input.providerName ? { providerName: input.providerName } : {}),
+          locale,
+          // 自定义端点的 api/key/模型没有模板基线可继承，必须在创建时一次写入；
+          // 走 initialConfig 让它们在同一个 Personal 事务里落库。
+          ...(input.api || input.apiKey || input.modelIds?.length
+            ? {
+                initialConfig: {
+                  ...(input.api ? { api: input.api } : {}),
+                  ...(input.apiKey ? { access: { type: "api-key" as const, apiKey: input.apiKey } } : {}),
+                  ...(input.modelIds?.length
+                    ? { personalModelIds: [...input.modelIds], modelOrder: [...input.modelIds] }
+                    : {}),
+                },
+              }
+            : {}),
+        });
+        // 拉取到的模型若不在模板 builtinModelIds 里，就没有规则层可为它提供参数，
+        // 必须显式添加；useRecommendedConfig 让正则分层补上 contextWindow 等默认值。
+        for (const modelId of input.modelIds ?? []) {
+          await addPersonalModel(created.providerId, modelId, {}, true);
+        }
         setPendingCreatedProviderId(created.providerId);
         setSelectedNodeKey(createCustomProviderNodeKey(created.providerId));
         setTemplatePickerOpen(false);
@@ -1000,7 +1029,7 @@ export function ModelProviderSection({
         setCreatingProvider(false);
       }
     },
-    [createPersonalProvider, locale],
+    [addPersonalModel, createPersonalProvider, locale],
   );
 
   const handleReorderProviderIds = useCallback(
@@ -1091,9 +1120,7 @@ export function ModelProviderSection({
           onCreateFromTemplate={(templateId) => {
             return handleCreateProvider({ templateId });
           }}
-          onCreateCustom={(label) => {
-            return handleCreateProvider({ providerName: label });
-          }}
+          onCreateCustom={(input) => handleCreateProvider(input)}
         />
       ) : (
         <ModelProviderSectionDetail
