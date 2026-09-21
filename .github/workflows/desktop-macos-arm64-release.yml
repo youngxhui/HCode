@@ -87,11 +87,13 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir -p artifacts
-          cp packages/desktop/dist/mac-arm64/*.dmg artifacts/
-          cp packages/desktop/dist/mac-arm64/*.zip artifacts/
+          # electron-builder 把归档产物（dmg/zip/blockmap）放在输出目录根，
+          # 未打包的 .app 在 dist/mac-arm64/ 子目录，不随 Release 分发。
+          cp packages/desktop/dist/*.dmg artifacts/
+          cp packages/desktop/dist/*.zip artifacts/
           # electron-builder 会为 zip 生成 blockmap，供差分更新使用；dmg 没有该文件。
-          if ls packages/desktop/dist/mac-arm64/*.blockmap >/dev/null 2>&1; then
-            cp packages/desktop/dist/mac-arm64/*.blockmap artifacts/
+          if ls packages/desktop/dist/*.blockmap >/dev/null 2>&1; then
+            cp packages/desktop/dist/*.blockmap artifacts/
           fi
           ls -lh artifacts
 

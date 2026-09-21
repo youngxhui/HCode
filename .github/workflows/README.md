@@ -35,7 +35,8 @@ pnpm `10.33.2`（与根 `package.json` 的 `packageManager` 一致）。
    - `electron-builder --mac --arm64`，产出 dmg 与 zip；
    - 脚本内置 app.asar 运行时依赖校验与体积审计，任一项失败即中止。
 
-产物位于 `packages/desktop/dist/mac-arm64/`，收集 `*.dmg`、`*.zip` 与
+产物由 electron-builder 放在 `packages/desktop/dist/` 根目录（未打包的 `.app` 在
+`dist/mac-arm64/` 子目录，不随 Release 分发），收集 `*.dmg`、`*.zip` 与
 `*.blockmap`（zip 的差分更新索引），先上传为 workflow artifact，再分发到
 GitHub Release。
 
