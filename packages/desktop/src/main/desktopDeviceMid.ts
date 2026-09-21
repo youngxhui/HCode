@@ -28,7 +28,7 @@ function generateDeviceMid(): string {
   return createHash("sha256").update(seed).digest("hex").slice(0, 32);
 }
 
-function osHwmid(): string {
+async function osHwmid(): Promise<string> {
   try {
     const os = await import("node:os");
     const parts = [

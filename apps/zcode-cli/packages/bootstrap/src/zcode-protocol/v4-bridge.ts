@@ -1484,11 +1484,6 @@ export function createConversationV4Gateway(
       }),
     emitLocalTtftFacts: (facts) =>
       context.notify({ method: V4_NOTIFICATIONS.localTtftFacts, params: facts }),
-    emitConversationTelemetryFact: (fact) =>
-      context.notify({
-        method: V4_NOTIFICATIONS.conversationTelemetryFact,
-        params: fact,
-      }),
     emitCuaPermissionObservation: (observation) =>
       context.notify({
         method: V4_NOTIFICATIONS.cuaPermissionObservation,

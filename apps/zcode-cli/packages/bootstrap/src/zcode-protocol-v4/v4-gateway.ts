@@ -1,4 +1,4 @@
-import { LocalTtftRecorder } from "./local-ttft.js";
+import { LocalTtftRecorder } from "./local-ttft-stub.js";
 import { localTtftNow, localTtftFactsSchema } from "@zcode/shared/zcode-protocol-v4";
 import {
   backgroundBashOutputResultSchema,
@@ -68,7 +68,6 @@ import type {
   V4ConversationRowsRangeResult,
   WorkspaceConfigState,
   WorkspaceConfigTopicFrame,
-  ConversationTelemetryFact,
   CuaPermissionObservation,
   ConversationOpenTiming,
 } from "@zcode/shared/zcode-protocol-v4";
@@ -142,7 +141,6 @@ import { SessionsIndexPublisher } from "./sessions-index-publisher.js";
 import { SessionsIndexPublisherRegistry } from "./sessions-index-publisher-registry.js";
 import { WorkspaceConfigPublisher } from "./workspace-config-publisher.js";
 import type { TopicFrameReservation } from "./topic-frame-reservation.js";
-import { ConversationTelemetryFactNormalizer } from "./conversation-telemetry-facts.js";
 import { CuaPermissionObservationNormalizer } from "./cua-permission-observation.js";
 import { V4CapabilityUnsupportedError } from "./commands/handlers/interaction-background.js";
 
@@ -224,8 +222,6 @@ export interface V4GatewayHost {
    * host 与测试 host 都必须显式接收 physical wire，类型层不再允许退回逻辑帧。
    */
   emitWireFrame(frame: RoutedTopicWireFrame): void;
-  /** 当前进程 live ingest 的无正文事实；不缓存、不进入 topic replay。 */
-  emitConversationTelemetryFact?(fact: ConversationTelemetryFact): void;
   emitLocalTtftFacts?(facts: import("@zcode/shared").LocalTtftFacts): void;
   /** 当前进程 live request_access 权限事实；不缓存、不进入 topic replay。 */
   emitCuaPermissionObservation?(observation: CuaPermissionObservation): void;
@@ -615,7 +611,6 @@ export class ConversationV4Gateway {
   private readonly attachmentPruneTimer: ReturnType<typeof setInterval>;
   private readonly now: () => number;
   private readonly createLogEpoch: (sessionId: string) => string;
-  private readonly telemetryNormalizer = new ConversationTelemetryFactNormalizer();
   private readonly cuaPermissionNormalizer = new CuaPermissionObservationNormalizer();
   private readonly telemetryEventIds = new Set<string>();
   private disposed = false;
@@ -774,23 +769,6 @@ export class ConversationV4Gateway {
     if (this.telemetryEventIds.size > MAX_TELEMETRY_EVENT_IDS) {
       const oldest = this.telemetryEventIds.values().next().value;
       if (typeof oldest === "string") this.telemetryEventIds.delete(oldest);
-    }
-    try {
-      const config =
-        this.publishers.get(sessionId)?.getSnapshot().config ??
-        this.host.getSessionConfigSeed?.(sessionId) ??
-        undefined;
-      const fact = this.telemetryNormalizer.normalize(sessionId, event, {
-        memoryEnabled: this.host.getSessionMemoryEnabled?.(sessionId),
-        modelName: config?.model,
-        modelProvider: config?.provider,
-      });
-      if (fact) {
-        this.host.emitConversationTelemetryFact?.(fact);
-      }
-    } catch (error) {
-      // 轮次事实绝不能反向阻断 conversation 投影；严格 schema 失败只记录诊断。
-      this.host.onError?.("v4.telemetry.normalize", error);
     }
     try {
       const observation = this.cuaPermissionNormalizer.normalize(sessionId, event);
@@ -2763,7 +2741,6 @@ export class ConversationV4Gateway {
     this.readyFlights.delete(sessionId);
     this.rawSequenceStates.delete(sessionId);
     if (options.clearCommandInbox) this.inbox.clearSession(sessionId);
-    this.telemetryNormalizer.clearSession(sessionId);
     this.detachedLiveSessions.delete(sessionId);
     this.projectionFaultedSessions.delete(sessionId);
     // detached child 归属清理：自己作为 child 从父表摘除；作为父则连带释放没有 record 的 child。
